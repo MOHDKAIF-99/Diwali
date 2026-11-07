@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Happy Diwali</title>
+<style>
+html,body{margin:0;height:100%;background:#05060d;overflow:hidden;font-family:'Courier New',monospace;color:#fff}
+canvas{position:fixed;inset:0;width:100%;height:100%}
+#letter{position:fixed;left:0;right:0;top:27%;text-align:center;padding:0 8%;pointer-events:none}
+#dear{display:block;color:#f5a623;font-weight:bold;font-size:clamp(16px,3.2vw,28px);margin-bottom:8px}
+#msg{font-size:clamp(12px,2.2vw,20px);line-height:1.6}
+#sig{display:block;margin-top:8px;color:#f5a623}
+#bar{position:fixed;bottom:3%;left:0;right:0;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:0 4%}
+#bar button{background:#f5d142;border:0;border-radius:8px;padding:9px 16px;font:inherit;font-size:14px;font-weight:bold;cursor:pointer}
+</style></head><body>
+<canvas id="cv"></canvas>
+<div id="letter"><b id="dear"></b><span id="msg"></span><i id="sig"></i></div>
+<div id="bar">
+  <button id="ver">Version 2</button>
+</div>
+
+<script>
+/* ============================================================
+   ✏️  EDIT HERE — sirf yeh block badalna hai
+   ============================================================ */
+const CONFIG = {
+  defaultName: "Maa",   // 👈 NAAM YAHAN BADLO (jisko wish bhejna hai)
+  fromName: "",         // 👈 apna naam (optional, khali chhod sakte ho)
+  message: "May your days be filled with light, your home with joy, good health and new beginnings."
+};
+/* ============================================================
+   Neeche ka code chhedne ki zaroorat nahi
+   ============================================================ */
+
+const cv = document.getElementById('cv'), x = cv.getContext('2d');
+let W, H, G, dots = [], scene = 1, tw;
+const fx = [];
+
+function params() {
+  return { to: CONFIG.defaultName, from: CONFIG.fromName };
+}
+
+/* ---- drawing helpers (offscreen) ---- */
+function fit(c, text, max, maxW) {
+  let s = max; c.font = `900 ${s}px Georgia,serif`;
+  while (c.measureText(text).width > maxW && s > 10) { s -= 4; c.font = `900 ${s}px Georgia,serif`; }
+  return s;
+}
+function title(c, y) {
+  const s = fit(c, 'Happy Diwali', Math.min(H * .14, 200), W * .9);
+  c.textAlign = 'left'; c.textBaseline = 'middle';
+  const a = 'Happy ', b = 'Diwali', wa = c.measureText(a).width, wb = c.measureText(b).width, sx = (W - wa - wb) / 2;
+  c.fillStyle = '#dfe8ff'; c.fillText(a, sx, y);
+  c.fillStyle = '#f5b942'; c.fillText(b, sx + wa, y);
+}
+function nameText(c, name, y) {
+  const s = fit(c, name, Math.min(H * .12, 150), W * .8);
+  c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#fff6e0'; c.fillText(name, W / 2, y);
+}
+function flame(c, px, py, s) {
+  c.beginPath(); c.moveTo(px, py - s * 1.6);
+  c.bezierCurveTo(px + s * .9, py - s * .5, px + s * .6, py + s * .4, px, py + s * .5);
+  c.bezierCurveTo(px - s * .6, py + s * .4, px - s * .9, py - s * .5, px, py - s * 1.6);
+  const g = c.createLinearGradient(0, py - s * 1.6, 0, py + s * .5);
+  g.addColorStop(0, '#fff3b0'); g.addColorStop(1, '#ff8a1f'); c.fillStyle = g; c.fill();
+}
+function bowl(c, px, py, w) {
+  c.beginPath(); c.moveTo(px - w, py); c.quadraticCurveTo(px, py + w * 1.2, px + w, py); c.closePath();
+  c.fillStyle = '#ff8c1a'; c.fill();
+}
+function lotus(c, px, py, R) {
+  const cols = ['#27d3d6', '#ff5fa2', '#ffa62b', '#ffd23f', '#ff7a3d', '#8a5cf6'];
+  c.save(); c.translate(px, py); c.scale(1.5, .8);
+  [[16, 1, .5, .16], [12, .7, .42, .15], [8, .45, .3, .14]].forEach(([n, rr, len, wd], ring) => {
+    for (let i = 0; i < n; i++) {
+      c.save(); c.rotate(i * 2 * Math.PI / n + ring * .2); c.beginPath();
+      c.ellipse(0, -R * rr * .62, R * wd, R * len * .55, 0, 0, 7);
+      c.fillStyle = cols[(i + ring) % cols.length]; c.fill(); c.restore();
+    }
+  });
+  c.restore();
+}
+function wheel(c, px, py, R) {
+  for (let i = 0; i < 18; i++) {
+    c.save(); c.translate(px, py); c.rotate(i * Math.PI / 9); c.beginPath();
+    c.ellipse(0, -R * .82, R * .1, R * .2, 0, 0, 7); c.fillStyle = '#e63b2e'; c.fill(); c.restore();
+  }
+  [[.72, '#ffb02e'], [.62, '#e0328f'], [.5, '#2ec4b6'], [.36, '#d62f9b'], [.16, '#ffd23f']]
+    .forEach(([r, col]) => { c.beginPath(); c.arc(px, py, R * r, 0, 7); c.fillStyle = col; c.fill(); });
+}
+
+/* ---- turn a drawing into dots ---- */
+function sample(draw, isFlame) {
+  const o = document.createElement('canvas'); o.width = W; o.height = H;
+  const c = o.getContext('2d'); draw(c);
+  const d = c.getImageData(0, 0, W, H).data;
+  for (let yy = 0; yy < H; yy += G) for (let xx = 0; xx < W; xx += G) {
+    const i = (yy * W + xx) * 4;
+    if (d[i + 3] > 140) dots.push({
+      x: Math.random() * W, y: Math.random() * H, tx: xx, ty: yy,
+      c: `rgb(${d[i]},${d[i + 1]},${d[i + 2]})`, p: Math.random() * 6.28, r: G * .34, f: isFlame
+    });
+  }
+}
+
+function build() {
+  W = innerWidth | 0; H = innerHeight | 0;
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  cv.width = W * dpr; cv.height = H * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  G = Math.max(5, Math.round(Math.min(W, H * .8) / 120));
+  dots = [];
+  const { to, from } = params();
+
+  sample(c => title(c, H * .17));
+
+  if (scene === 1) {
+    const R = Math.min(W * .26, H * .17), cx = W / 2, cy = H * .64;
+    sample(c => { lotus(c, cx, cy, R); bowl(c, cx, cy + R * .35, R * .5); });
+    sample(c => flame(c, cx, cy - R * .12, R * .2), true);
+    document.getElementById('dear').textContent = `Dear ${to},`;
+    document.getElementById('sig').textContent = from ? `— ${from}` : '';
+    document.getElementById('letter').style.display = 'block';
+    typeMsg();
+  } else {
+    document.getElementById('letter').style.display = 'none';
+    sample(c => nameText(c, to, H * .31));
+    const R = Math.min(W * .2, H * .14), cx = W / 2, cy = H * .55;
+    sample(c => wheel(c, cx, cy, R));
+    const gap = Math.min(W * .17, 150), by = H * .78, bw = Math.min(W * .06, 40);
+    [-1, 0, 1].forEach(k => sample(c => bowl(c, cx + k * gap, by, bw)));
+    [-1, 0, 1].forEach(k => sample(c => flame(c, cx + k * gap, by - bw * .55, bw * .5), true));
+  }
+}
+
+function typeMsg() {
+  clearInterval(tw);
+  const el = document.getElementById('msg'); el.textContent = ''; let i = 0;
+  tw = setInterval(() => { el.textContent = CONFIG.message.slice(0, ++i); if (i >= CONFIG.message.length) clearInterval(tw); }, 45);
+}
+
+/* ---- fireworks ---- */
+function burst() {
+  const bx = W * (.12 + Math.random() * .76), by = H * (.06 + Math.random() * .3), hue = Math.random() * 360;
+  for (let i = 0; i < 50; i++) {
+    const a = i / 50 * 6.283, s = 1.5 + Math.random() * 2.5;
+    fx.push({ x: bx, y: by, vx: Math.cos(a) * s, vy: Math.sin(a) * s, l: 1, c: `hsl(${hue + Math.random() * 40},100%,65%)` });
+  }
+}
+
+function loop() {
+  const t = performance.now() / 1000;
+  x.globalAlpha = 1; x.fillStyle = '#05060d'; x.fillRect(0, 0, W, H);
+  if (Math.random() < .018) burst();
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const f = fx[i]; f.x += f.vx; f.y += f.vy; f.vy += .03; f.vx *= .99; f.l -= .012;
+    if (f.l <= 0) { fx.splice(i, 1); continue; }
+    x.globalAlpha = f.l; x.fillStyle = f.c; x.beginPath(); x.arc(f.x, f.y, 2, 0, 7); x.fill();
+  }
+  for (const d of dots) {
+    d.x += (d.tx - d.x) * .06; d.y += (d.ty - d.y) * .06;
+    let yy = d.y, r = d.r;
+    if (d.f) { yy += Math.sin(t * 9 + d.p) * 1.5; r *= 1 + .2 * Math.sin(t * 12 + d.p); }
+    x.globalAlpha = .7 + .3 * Math.sin(t * 3 + d.p);
+    x.fillStyle = d.c; x.beginPath(); x.arc(d.x, yy, r, 0, 7); x.fill();
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ---- buttons ---- */
+document.getElementById('ver').onclick = e => {
+  scene = scene === 1 ? 2 : 1; e.target.textContent = scene === 1 ? 'Version 2' : 'Version 1'; build();
+};
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(build, 250); });
+
+build(); loop();
+</script>
+</body></html>
