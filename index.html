@@ -10,6 +10,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%}
 #msg{font-size:clamp(12px,2.2vw,20px);line-height:1.6}
 #sig{display:block;margin-top:8px;color:#f5a623}
 #bar{position:fixed;bottom:3%;left:0;right:0;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:0 4%}
+#bar input{background:#111426;border:1px solid #333a5c;color:#fff;border-radius:8px;padding:9px 12px;width:120px;font:inherit;font-size:14px}
 #bar button{background:#f5d142;border:0;border-radius:8px;padding:9px 16px;font:inherit;font-size:14px;font-weight:bold;cursor:pointer}
 </style></head><body>
 <canvas id="cv"></canvas>
@@ -17,7 +18,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%}
 <div id="bar">
   <button id="ver">Version 2</button>
 </div>
-
+ 
 <script>
 /* ============================================================
    ✏️  EDIT HERE — sirf yeh block badalna hai
@@ -30,15 +31,16 @@ const CONFIG = {
 /* ============================================================
    Neeche ka code chhedne ki zaroorat nahi
    ============================================================ */
-
+ 
 const cv = document.getElementById('cv'), x = cv.getContext('2d');
 let W, H, G, dots = [], scene = 1, tw;
 const fx = [];
-
+ 
 function params() {
-  return { to: CONFIG.defaultName, from: CONFIG.fromName };
+  const g = k => { const m = location.hash.match(new RegExp(k + '=([^&]*)')); return m ? decodeURIComponent(m[1]) : '' };
+  return { to: g('to') || CONFIG.defaultName, from: g('from') || CONFIG.fromName };
 }
-
+ 
 /* ---- drawing helpers (offscreen) ---- */
 function fit(c, text, max, maxW) {
   let s = max; c.font = `900 ${s}px Georgia,serif`;
@@ -87,7 +89,7 @@ function wheel(c, px, py, R) {
   [[.72, '#ffb02e'], [.62, '#e0328f'], [.5, '#2ec4b6'], [.36, '#d62f9b'], [.16, '#ffd23f']]
     .forEach(([r, col]) => { c.beginPath(); c.arc(px, py, R * r, 0, 7); c.fillStyle = col; c.fill(); });
 }
-
+ 
 /* ---- turn a drawing into dots ---- */
 function sample(draw, isFlame) {
   const o = document.createElement('canvas'); o.width = W; o.height = H;
@@ -101,7 +103,7 @@ function sample(draw, isFlame) {
     });
   }
 }
-
+ 
 function build() {
   W = innerWidth | 0; H = innerHeight | 0;
   const dpr = Math.min(devicePixelRatio || 1, 2);
@@ -109,9 +111,9 @@ function build() {
   G = Math.max(5, Math.round(Math.min(W, H * .8) / 120));
   dots = [];
   const { to, from } = params();
-
+ 
   sample(c => title(c, H * .17));
-
+ 
   if (scene === 1) {
     const R = Math.min(W * .26, H * .17), cx = W / 2, cy = H * .64;
     sample(c => { lotus(c, cx, cy, R); bowl(c, cx, cy + R * .35, R * .5); });
@@ -130,13 +132,13 @@ function build() {
     [-1, 0, 1].forEach(k => sample(c => flame(c, cx + k * gap, by - bw * .55, bw * .5), true));
   }
 }
-
+ 
 function typeMsg() {
   clearInterval(tw);
   const el = document.getElementById('msg'); el.textContent = ''; let i = 0;
   tw = setInterval(() => { el.textContent = CONFIG.message.slice(0, ++i); if (i >= CONFIG.message.length) clearInterval(tw); }, 45);
 }
-
+ 
 /* ---- fireworks ---- */
 function burst() {
   const bx = W * (.12 + Math.random() * .76), by = H * (.06 + Math.random() * .3), hue = Math.random() * 360;
@@ -145,7 +147,7 @@ function burst() {
     fx.push({ x: bx, y: by, vx: Math.cos(a) * s, vy: Math.sin(a) * s, l: 1, c: `hsl(${hue + Math.random() * 40},100%,65%)` });
   }
 }
-
+ 
 function loop() {
   const t = performance.now() / 1000;
   x.globalAlpha = 1; x.fillStyle = '#05060d'; x.fillRect(0, 0, W, H);
@@ -164,13 +166,14 @@ function loop() {
   }
   requestAnimationFrame(loop);
 }
-
+ 
 /* ---- buttons ---- */
 document.getElementById('ver').onclick = e => {
   scene = scene === 1 ? 2 : 1; e.target.textContent = scene === 1 ? 'Version 2' : 'Version 1'; build();
 };
+addEventListener('hashchange', build);
 let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(build, 250); });
-
+ 
 build(); loop();
 </script>
 </body></html>
